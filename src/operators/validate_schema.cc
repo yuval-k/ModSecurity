@@ -35,14 +35,6 @@ bool ValidateSchema::init(const std::string &file, std::string *error) {
         return false;
     }
 
-    return true;
-}
-
-
-bool ValidateSchema::evaluate(Transaction *t,
-    const std::string &str) {
-    int rc;
-
     m_parserCtx = xmlSchemaNewParserCtxt(m_resource.c_str());
     if (m_parserCtx == NULL) {
         std::stringstream err;
@@ -52,8 +44,8 @@ bool ValidateSchema::evaluate(Transaction *t,
         if (m_err.empty() == false) {
             err << m_err;
         }
-        ms_dbg_a(t, 4, err.str());
-        return true;
+        error->assign(err.str());
+        return false;
     }
 
     xmlSchemaSetParserErrors(m_parserCtx,
@@ -75,13 +67,21 @@ bool ValidateSchema::evaluate(Transaction *t,
         if (m_err.empty() == false) {
             err << " " << m_err;
         }
-        ms_dbg_a(t, 4, err.str());
+        error->assign(err.str());
         xmlSchemaFreeParserCtxt(m_parserCtx);
-        return true;
+        m_parserCtx = NULL;
+        return false;
     }
 
-    m_validCtx = xmlSchemaNewValidCtxt(m_schema);
-    if (m_validCtx == NULL) {
+    return true;
+}
+
+bool ValidateSchema::evaluate(Transaction *t,
+    const std::string &str) {
+    int rc;
+
+    std::unique_ptr<xmlSchemaValidCtxt, decltype(&xmlSchemaFreeValidCtxt)> validCtx(xmlSchemaNewValidCtxt(m_schema), &xmlSchemaFreeValidCtxt);
+    if (validCtx == NULL) {
         std::stringstream err("XML: Failed to create validation context.");
         if (m_err.empty() == false) {
             err << " " << m_err;
@@ -91,7 +91,7 @@ bool ValidateSchema::evaluate(Transaction *t,
     }
 
     /* Send validator errors/warnings to msr_log */
-    xmlSchemaSetValidErrors(m_validCtx,
+    xmlSchemaSetValidErrors(validCtx.get(),
         (xmlSchemaValidityErrorFunc)error_runtime,
         (xmlSchemaValidityWarningFunc)warn_runtime, t);
 
@@ -116,18 +116,14 @@ bool ValidateSchema::evaluate(Transaction *t,
     }
     */
 
-    rc = xmlSchemaValidateDoc(m_validCtx, t->m_xml->m_data.doc);
+    rc = xmlSchemaValidateDoc(validCtx.get(), t->m_xml->m_data.doc);
     if (rc != 0) {
         ms_dbg_a(t, 4, "XML: Schema validation failed.");
-        xmlSchemaFree(m_schema);
-        xmlSchemaFreeParserCtxt(m_parserCtx);
         return true; /* No match. */
     }
 
     ms_dbg_a(t, 4, "XML: Successfully validated payload against " \
         "Schema: " + m_resource);
-    xmlSchemaFree(m_schema);
-    xmlSchemaFreeParserCtxt(m_parserCtx);
 
     return false;
 }

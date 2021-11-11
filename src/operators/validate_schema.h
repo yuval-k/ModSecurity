@@ -43,18 +43,16 @@ class ValidateSchema : public Operator {
     explicit ValidateSchema(std::unique_ptr<RunTimeString> param)
         : Operator("ValidateSchema", std::move(param)),
         m_parserCtx(NULL),
-        m_validCtx(NULL),
         m_schema(NULL) { }
     ~ValidateSchema() {
-        /*
+        
         if (m_schema != NULL) {
             xmlSchemaFree(m_schema);
             m_schema = NULL;
         }
-        */
-        if (m_validCtx != NULL) {
-            xmlSchemaFreeValidCtxt(m_validCtx);
-            m_validCtx = NULL;
+        if (m_parserCtx != NULL) {
+            xmlSchemaFreeParserCtxt(m_parserCtx);
+            m_parserCtx = NULL;
         }
     }
 
@@ -130,7 +128,6 @@ class ValidateSchema : public Operator {
 
  private:
     xmlSchemaParserCtxtPtr m_parserCtx;
-    xmlSchemaValidCtxtPtr m_validCtx;
     xmlSchemaPtr m_schema;
     std::string m_resource;
     std::string m_err;
